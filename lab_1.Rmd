@@ -1,0 +1,27 @@
+---
+title: "Lab 1"
+author: "Felicia Cruz"
+date: "4/6/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(jsonlite) #convert results from API queries into R-friendly formats 
+library(tidyverse) 
+library(tidytext) #text data management and analysis
+library(ggplot2) #plot word frequencies and publication dates
+```
+
+```{r}
+# key = e2lN9cy24Ray0Lq5H5wASYsn1vBUwtGt
+```
+
+
+```{r}
+rbind(pages) # need to bind the pages and create a tibble from nytDa
+```
+
