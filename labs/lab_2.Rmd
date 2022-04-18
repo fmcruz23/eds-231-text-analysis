@@ -19,19 +19,59 @@ library(readr)
 ```
 
 
-for the Froelich et al plot:
+## for the Froelich et al plot:
 - group_by date 
 - summarize mean sentiment for that day 
 - plot x = day, y = sentiment 
 ```{r}
+# load data 
+ipcc_files <- list.files(pattern = ".docx", path = here("labs", "data"),
+                       full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
 
+
+ipcc_dat <- lnt_read(ipcc_files) 
+
+
+ipcc_meta_df <- ipcc_dat@meta
+ippc_articles_df <- ipcc_dat@articles
+ippc_paragraphs_df <- ipcc_dat@paragraphs
+
+ipcc_dat_2<- data_frame(element_id = seq(1:length(ipcc_meta_df$Headline)), Date = ipcc_meta_df$Date, Headline = ipcc_meta_df$Headline)
+```
+
+```{r}
+#can we create a similar graph to Figure 1A from Froelich et al.? 
+
+mytext <- get_sentences(ipcc_dat_2$Headline)
+sent <- sentiment(mytext)
+
+sent_df <- inner_join(ipcc_dat_2, sent, by = "element_id")
+
+sentiment <- sentiment_by(sent_df$Headline)
+
+sent_df %>%
+  arrange(sentiment) 
+
+sent_df$polarity <- ifelse(sent_df$sentiment <0, -1, ifelse(sent_df$sentiment > 0, 1, 0))
+```
+
+```{r}
+sent_df_summary <- sent_df %>%  
+  group_by(Date, polarity) %>% 
+  summarize(count_polarity_date = n())
+
+ggplot(data = sent_df_summary, aes(x = Date, y = count_polarity_date, )) +
+  geom_line(aes(group = as.factor(polarity), color = as.factor(polarity))) +
+  scale_color_manual(labels = c("negative", "neutral", "postive"), values = c("red", "gray", "blue")) +
+  labs(color = "",
+       y = "Polarity (number of headlines)") +
+  theme_bw()
+         
 ```
 
 
-for the lab:
-
+## for the lab:
 ```{r}
-
 my_files <- list.files(pattern = ".docx", path = here("labs", "data"),
                        full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
 
@@ -66,11 +106,52 @@ nrc_sent <- get_sentiments('nrc') #requires downloading a large dataset via prom
 text_words <- dat3  %>%
   unnest_tokens(output = word, input = Text, token = 'words') # take the paragraphs and unnest to get a column of individual words 
  
- sent_words <- text_words %>% 
+sent_words <- text_words %>% 
   anti_join(stop_words, by = 'word') %>% # remove stop words
   inner_join(nrc_sent, by = 'word') # join and retain only sentiment words
 ```
 
+
+```{r}
+sentiment_counts <- sent_words %>% 
+  filter(sentiment != "positive",
+         sentiment != "negative") %>% 
+  group_by(Date, sentiment) %>% 
+  summarize(count_by_sentiment = n()) 
+
+daily_sent_words_df <- sentiment_counts %>%
+ # select(-sentiment) %>% 
+  group_by(Date) %>% 
+  summarize(total_daily_sent = sum(count_by_sentiment))
+
+# join the two dfs by date 
+sent_words_summary <- left_join(sentiment_counts, daily_sent_words_df, by = "Date")
+
+# add a percentage column 
+sent_words_summary <- sent_words_summary %>% 
+  mutate(percent = count_by_sentiment / total_daily_sent) %>% 
+  filter(!is.na(Date))
+
+```
+
+
+```{r}
+# line graph with 8 lines 
+ggplot(data = sent_words_summary, aes(x = Date, y = percent)) +
+  geom_line(aes(group = sentiment, color = sentiment))
+
+
+# stacked bar chart 
+ggplot(data = sent_words_summary, aes(x = as.factor(Date), y = percent, fill = sentiment)) +
+  geom_col(position = "stack") +
+  scale_y_continuous(labels = scales::percent) +
+  labs(x = "Date",
+       y = "Percent",
+       fill = "Emotion",
+       title = "Emotion Words as a Percentage of all Emotion Words") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+```
 
 for the emotions plot: 
 - x = date 
