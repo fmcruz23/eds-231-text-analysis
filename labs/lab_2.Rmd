@@ -1,8 +1,8 @@
 ---
-title: "lab_2"
+title: "Lab 2"
 author: "Felicia Cruz"
-date: "4/13/2022"
-output: html_document
+date: "4/19/2022"
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -19,13 +19,13 @@ library(readr)
 ```
 
 
-## for the Froelich et al plot:
+## 0. Recreating Figure 1A from Froelich et al. 
 - group_by date 
 - summarize mean sentiment for that day 
 - plot x = day, y = sentiment 
-```{r}
+```{r, warning=FALSE, message=FALSE}
 # load data 
-ipcc_files <- list.files(pattern = ".docx", path = here("labs", "data"),
+ipcc_files <- list.files(pattern = ".docx", path = here("labs", "data", "ipcc_nexis"),
                        full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
 
 
@@ -36,12 +36,11 @@ ipcc_meta_df <- ipcc_dat@meta
 ippc_articles_df <- ipcc_dat@articles
 ippc_paragraphs_df <- ipcc_dat@paragraphs
 
+# headline df
 ipcc_dat_2<- data_frame(element_id = seq(1:length(ipcc_meta_df$Headline)), Date = ipcc_meta_df$Date, Headline = ipcc_meta_df$Headline)
 ```
 
 ```{r}
-#can we create a similar graph to Figure 1A from Froelich et al.? 
-
 mytext <- get_sentences(ipcc_dat_2$Headline)
 sent <- sentiment(mytext)
 
@@ -66,13 +65,15 @@ ggplot(data = sent_df_summary, aes(x = Date, y = count_polarity_date, )) +
   labs(color = "",
        y = "Polarity (number of headlines)") +
   theme_bw()
-         
 ```
 
 
-## for the lab:
-```{r}
-my_files <- list.files(pattern = ".docx", path = here("labs", "data"),
+## 1. Nexis Uni database 
+
+For my Nexis Uni database query I chose the search term "wildfire" with the date range April 1, 2021 to July 1, 2021 to encapsulate articles both leading up to and at the start of wildfire season. I pulled 100 full text results for this lab and the final plots span April 15, 2021 to July 1, 2021. 
+
+```{r, warning=FALSE, message=FALSE}
+my_files <- list.files(pattern = ".DOCX", path = here("labs", "data", "wildfire_2_nexis"),
                        full.names = TRUE, recursive = TRUE, ignore.case = TRUE)
 
 dat <- lnt_read(my_files) #Object of class 'LNT output'
@@ -134,13 +135,18 @@ sent_words_summary <- sent_words_summary %>%
 
 ```
 
-
+### Plot the amount of emotion words (the 8 from nrc) as a percentage of all the emotion words used each day (aggregate text from articles published on the same day).
 ```{r}
 # line graph with 8 lines 
 ggplot(data = sent_words_summary, aes(x = Date, y = percent)) +
-  geom_line(aes(group = sentiment, color = sentiment))
+  geom_line(aes(group = sentiment, color = sentiment)) + 
+  labs(x = "Date",
+       y = "Percent",
+       fill = "Emotion",
+       title = "Emotion Words as a Percentage of all Emotion Words")
 
-
+```
+```{r}
 # stacked bar chart 
 ggplot(data = sent_words_summary, aes(x = as.factor(Date), y = percent, fill = sentiment)) +
   geom_col(position = "stack") +
@@ -150,15 +156,9 @@ ggplot(data = sent_words_summary, aes(x = as.factor(Date), y = percent, fill = s
        fill = "Emotion",
        title = "Emotion Words as a Percentage of all Emotion Words") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
-  
 ```
 
-for the emotions plot: 
-- x = date 
-- y axis is a scale to 100% 
-- stacked bar chart for each day adding up to 100%
-- or line graph with 8 lines
-```{r}
+### How does the distribution of emotion words change over time? Can you think of any reason this would be the case?
 
-```
+From the stacked bar chart, we can see that fear is often the highest percentage of emotion words on a given day. While this is often the case, from the line graph we see that there are big peaks and dips in the line for fear. Anticipation, while normally making up a smaller percentage of emotion words compared to fear, also shows many peaks and dips, often aligning with those of fear. This is somewhat intuitive or expected since the anticipation of wildfires can go hand-in-hand with fear. All of these fluctuations could be reflecting articles written in the days leading up to or surrounding a wildfire event. While this time frame covers some of the wildfire season, the number of wildfire events and intensities will vary over the season and this is one reason that I think would contribute to the distribution of emotion word percentages. 
 
