@@ -13,23 +13,26 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r packages, results='hide', message=FALSE, warning=FALSE}
 library(quanteda)
-#devtools::install_github("quanteda/quanteda.sentiment") #not available currently through CRAN
 library(quanteda.sentiment)
 library(quanteda.textstats)
 library(tidyverse)
 library(tidytext)
 library(lubridate)
-library(wordcloud) #visualization of common words in the data set
+library(wordcloud) 
 library(reshape2)
+library(here)
 ```
 
 Last week we used the tidytext approach to sentiment analysis for Nexis Uni .pdf data on coverage of the recent IPCC report. This week we will look at the conversation on Twitter about the same report. We'll start with the familiar tidy approach, and then introduce the quanteda package later.
 
 ```{r tweet_data}
 
-raw_tweets <- read.csv("https://raw.githubusercontent.com/MaRo406/EDS_231-text-sentiment/main/dat/IPCC_tweets_April1-10_sample.csv", header=TRUE)
+# raw_tweets <- read.csv("https://raw.githubusercontent.com/MaRo406/EDS_231-text-sentiment/main/dat/IPCC_tweets_April1-10_sample.csv", header=TRUE)
 
-dat<- raw_tweets[,c(5,7)] # Extract Date and Title fields
+raw_tweets <- read.csv(here("labs", "data", "IPCC_tweets_April1-10_sample.csv"))
+
+dat<- raw_tweets[,c(4,6)] # Extract Date and Title fields
+
 
 tweets <- tibble(text = dat$Title,
                   id = seq(1:length(dat$Title)),
@@ -154,7 +157,7 @@ tokens <- tokens(tokens, remove_punct = TRUE,
 
 tokens <- tokens_select(tokens, stopwords('english'),selection='remove') #stopwords lexicon built in to quanteda
 
-#tokens <- tokens_wordstem(tokens) #stem words down to their base form for comparisons across tense and quantity
+tokens <- tokens_wordstem(tokens) #stem words down to their base form for comparisons across tense and quantity
 
 tokens <- tokens_tolower(tokens)
 
@@ -212,10 +215,111 @@ You will use the tweet data from class today for each part of the following assi
 
 1.  Think about how to further clean a twitter data set. Let's assume that the mentions of twitter accounts is not useful to us. Remove them from the text field of the tweets tibble.
 
-2.  Compare the ten most common terms in the tweets per day.  Do you notice anything interesting?
+```{r}
+tweets_new <- tweets # duplicate the original tweets df 
+
+tweets_new$text <- str_replace_all(tweets_new$text, "@[a-z,A-Z]*","")
+```
+
+2.  Compare the ten most common terms in the tweets per day. Do you notice anything interesting?
+
+```{r}
+words_summary <- words %>% 
+  group_by(date, word) %>% 
+  summarize(count = n())
+
+words_summary %>% 
+  group_by(date) %>% 
+  slice_max(order_by = count, n = 10) %>% 
+  ggplot(aes(x = count, y = word)) +
+  geom_col(aes(fill = as.factor(date)))
+
+```
+
 
 3.  Adjust the wordcloud in the "wordcloud" chunk by coloring the positive and negative words so they are identifiable.
 
+```{r, warning=FALSE}
+words %>%
+inner_join(get_sentiments("bing")) %>%
+count(word, sentiment, sort = TRUE) %>%
+acast(word ~ sentiment, value.var = "n", fill = 0) %>%
+comparison.cloud(colors = c("red", "blue"),
+                   max.words = 100)
+```
+
+
 4. Let's say we are interested in the most prominent entities in the Twitter discussion.  Which are the top 10 most tagged accounts in the data set. Hint: the "explore_hashtags" chunk is a good starting point.
 
-5. The Twitter data download comes with a variable called "Sentiment" that must be calculated by Brandwatch.  Use your own method to assign each tweet a polarity score (Positive, Negative, Neutral) and compare your classification to Brandwatch's (hint: you'll need to revisit the "raw_tweets" data frame).   
+```{r}
+account_tweets <- tokens(corpus, remove_punct = TRUE) %>% 
+               tokens_keep(pattern = "@*")
+
+dfm_account<- dfm(account_tweets)
+
+tstat_freq <- textstat_frequency(dfm_account, n = 100) %>% 
+  head(10) 
+
+# find the top ten most tagged accounts 
+tstat_freq$feature
+```
+
+5. The Twitter data download comes with a variable called "Sentiment" that must be calculated by Brandwatch. Use your own method to assign each tweet a polarity score (Positive, Negative, Neutral) and compare your classification to Brandwatch's (hint: you'll need to revisit the "raw_tweets" data frame).  
+
+```{r}
+# do a bar graph of counts for positive, negative, and neutral twice to compare?
+
+# sentiment(raw_tweets$Title)
+
+words_5 <- tweets %>%
+  select(id, date, text) %>%
+  unnest_tokens(output = word, input = text, token = "words") %>%
+  anti_join(stop_words, by = "word") %>%
+  left_join(nrc_sent, by = "word") %>%
+  left_join(
+    tribble(
+      ~sentiment, ~sent_score,
+      "positive", 1,
+      "negative", -1),
+    by = "sentiment")
+
+```
+
+```{r}
+#take average sentiment score by tweet
+tweets_sent_5 <- tweets %>%
+  left_join(
+    words %>%
+      group_by(id) %>%
+      summarize(
+        sent_score = mean(sent_score, na.rm = T)),
+    by = "id")
+
+neutral <- length(which(tweets_sent_5$sent_score == 0))
+positive <- length(which(tweets_sent_5$sent_score > 0))
+negative <- length(which(tweets_sent_5$sent_score < 0))
+
+Sentiment <- c("Positive","Neutral","Negative")
+Count <- c(positive,neutral,negative)
+output <- data.frame(Sentiment,Count)
+output$Sentiment<-factor(output$Sentiment,levels=Sentiment)
+ggplot(output, aes(x=Sentiment,y=Count))+
+  geom_bar(stat = "identity", aes(fill = Sentiment))+
+  scale_fill_manual("legend", values = c("Positive" = "green", "Neutral" = "black", "Negative" = "red"))+
+  ggtitle("Barplot of Sentiment in IPCC tweets")
+
+```
+```{r}
+# bar graph of Sentiment column in raw_tweets df (Brandwatch?)
+raw_tweets %>% 
+  group_by(Sentiment) %>% 
+  summarize(count = n()) %>%
+  ggplot(aes(x=Sentiment,y=count))+
+  geom_bar(stat = "identity", aes(fill = Sentiment))
+
+
+  scale_fill_manual("legend", values = c("Positive" = "green", "Neutral" = "black", "Negative" = "red"))+
+  ggtitle("Barplot of Sentiment in IPCC tweets")
+
+```
+
